@@ -155,15 +155,11 @@ char* BeaconDataExtract(datap* parser, int* size) {
 /* format API */
 
 void BeaconFormatAlloc(formatp* format, int maxsz) {
-    if (format == NULL) {
-        return;
-    }
-
-    format->original = calloc(maxsz, 1);
+    if (format == NULL) return;
+    format->original = calloc(maxsz + 1, 1); // +1 for null terminator safety
     format->buffer = format->original;
     format->length = 0;
     format->size = maxsz;
-    return;
 }
 
 void BeaconFormatReset(formatp* format) {
@@ -203,36 +199,39 @@ void BeaconFormatAppend(formatp* format, char* text, int len) {
 }
 
 void BeaconFormatPrintf(formatp* format, char* fmt, ...) {
-    if (format == NULL || fmt == NULL) {
-        return;
-    }
+    if (format == NULL || fmt == NULL) return;
 
-    /*Take format string, and sprintf it into here*/
     va_list args;
-    int length = 0;
-
     va_start(args, fmt);
-    length = vsnprintf(NULL, 0, fmt, args);
+    int length = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
+
+    // Dynamic Reallocation: If the new string won't fit, grow the buffer
     if (format->length + length + 1 > format->size) {
-        return;
+        int new_size = format->size + length + 4096; // Add extra padding
+        char* new_ptr = realloc(format->original, new_size);
+        if (new_ptr == NULL) return; 
+        
+        format->original = new_ptr;
+        format->buffer = format->original + format->length;
+        format->size = new_size;
     }
 
     va_start(args, fmt);
-    (void)vsnprintf(format->buffer, length + 1, fmt, args);
+    vsnprintf(format->buffer, length + 1, fmt, args);
     va_end(args);
+    
     format->length += length;
     format->buffer += length;
-    return;
 }
 
-
 char* BeaconFormatToString(formatp* format, int* size) {
-    if (format == NULL || size == NULL) {
-        return NULL;
-    }
+    if (format == NULL) return NULL;
 
-    *size = format->length;
+    // Fix: allow size to be NULL if the BOF doesn't need the length
+    if (size != NULL) {
+        *size = format->length;
+    }
     return format->original;
 }
 
